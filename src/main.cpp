@@ -94,7 +94,7 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id); // 
 void PrintObjModelInfo(ObjModel*); // Função para debugging
 
 int desenha_esferas();
-int testa_colisao_esfera_vaca(glm::vec4 *posicao_esfera);
+int testa_colisao_esfera_vaca(glm::vec3 *posicao_esfera);
 glm::mat4 desenha_cada_esfera(glm::mat4 *modelo,glm::vec3 *posicao_esfera);
 
 // Declaração de funções auxiliares para renderizar texto dentro da janela
@@ -459,9 +459,11 @@ int main(int argc, char* argv[])
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, VACA);
         DrawVirtualObject("cow");
-
-        int colidiu = desenha_esferas();
-
+        int colidiu = 0;
+            colidiu = desenha_esferas();
+            if(colidiu == 1){
+                printf("Você destruiu mais um planeta\n");
+            }
          /*// Desenhamos o modelo do coelho
         model = Matrix_Translate(1.0f,0.0f,0.0f)
               * Matrix_Rotate_X(g_AngleX + (float)glfwGetTime() * 0.1f);
@@ -516,7 +518,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-    int desenha_esferas(glm::mat4 *posicao_vaca){
+    int desenha_esferas(){
 
         float faixa_um = -2.0f;
         float faixa_dois = -1.0f;
@@ -527,8 +529,6 @@ int main(int argc, char* argv[])
         int total_esferas = 7;
 
         float posicao_inicial = comprimento_estrada/2.0f;
-
-
 
         glm::vec3 esfera1 = glm::vec3(10.0f, 0.0f,faixa_um); // X,Y,Z
         glm::vec3 esfera2 = glm::vec3(35.0f, 0.0f,faixa_dois); // X,Y,Z
@@ -616,11 +616,15 @@ int testa_colisao_esfera_vaca(glm::vec3 *posicao_esfera)
 
     float transl_vaca_x = vaca_x;
     float transl_vaca_z = vaca_z;
-    float transl_esf_x = *posicao_esfera.x;
-    float transl_esf_z = *posicao_esfera.z;
+    float transl_esf_x = posicao_esfera->x;
+    float transl_esf_z = posicao_esfera->z;
 
-    if(transl_vaca_x >)
-
+    if(transl_vaca_x + raio_esfera > transl_esf_x
+       && abs(transl_vaca_z - transl_esf_z) < raio_esfera)
+        {
+            colidiu = 1;
+        }
+    return colidiu;
 }
 // Função que carrega uma imagem para ser utilizada como textura
 void LoadTextureImage(const char* filename)
