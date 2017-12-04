@@ -70,7 +70,7 @@ struct ObjModel
 
         if (!ret)
             throw std::runtime_error("Erro ao carregar modelo.");
-        
+
         printf("OK.\n");
     }
 };
@@ -92,6 +92,10 @@ GLuint LoadShader_Fragment(const char* filename); // Carrega um fragment shader
 void LoadShader(const char* filename, GLuint shader_id); // Função utilizada pelas duas acima
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id); // Cria um programa de GPU
 void PrintObjModelInfo(ObjModel*); // Função para debugging
+
+int desenha_esferas();
+int testa_colisao_esfera_vaca(glm::vec4 *posicao_esfera);
+glm::mat4 desenha_cada_esfera(glm::mat4 *modelo,glm::vec3 *posicao_esfera);
 
 // Declaração de funções auxiliares para renderizar texto dentro da janela
 // OpenGL. Estas funções estão definidas no arquivo "textrendering.cpp".
@@ -147,6 +151,19 @@ std::stack<glm::mat4>  g_MatrixStack;
 // Razão de proporção da janela (largura/altura). Veja função FramebufferSizeCallback().
 float g_ScreenRatio = 1.0f;
 
+// Coordenadas vaca;
+float vaca_x = 0.0f;
+float vaca_y = 0.0f;
+float vaca_z = 0.0f;
+
+float posx_camera = vaca_x - 2.0f;
+float posy_camera = 1.00f;
+float posz_camera = 0.00f;
+
+int tipo_camera = 2;
+
+float largura_estrada = 3.0f;
+float comprimento_estrada = 100.0f;
 // Ângulos de Euler que controlam a rotação de um dos cubos da cena virtual
 float g_AngleX = 0.0f;
 float g_AngleY = 0.0f;
@@ -219,7 +236,7 @@ int main(int argc, char* argv[])
     // Criamos uma janela do sistema operacional, com 800 colunas e 600 linhas
     // de pixels, e com título "INF01047".
     GLFWwindow* window;
-    window = glfwCreateWindow(800, 600, "INF01047", NULL, NULL);
+    window = glfwCreateWindow(800, 600, "JOGO DA VACA", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -248,6 +265,7 @@ int main(int argc, char* argv[])
     // redimensionada, por consequência alterando o tamanho do "framebuffer"
     // (região de memória onde são armazenados os pixels da imagem).
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
+
     FramebufferSizeCallback(window, 800, 600); // Forçamos a chamada do callback acima, para definir g_ScreenRatio.
 
     // Imprimimos no terminal informações sobre a GPU do sistema
@@ -265,8 +283,9 @@ int main(int argc, char* argv[])
     LoadShadersFromFiles();
 
     // Carregamos duas imagens para serem utilizadas como textura
-    LoadTextureImage("../../data/tc-earth_daymap_surface.jpg");      // TextureImage0
-    LoadTextureImage("../../data/tc-earth_nightmap_citylights.gif"); // TextureImage1
+    LoadTextureImage("../../data/tc-earth_daymap_surface.jpg");// TextureImage0
+	LoadTextureImage("../../data/road.jpg"); // TextureImage1
+    LoadTextureImage("../../data/esfera.jpg"); // TextureImage2
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -280,6 +299,10 @@ int main(int argc, char* argv[])
     ObjModel planemodel("../../data/plane.obj");
     ComputeNormals(&planemodel);
     BuildTrianglesAndAddToVirtualScene(&planemodel);
+
+	ObjModel cowmodel("../../data/cow.obj");
+    ComputeNormals(&cowmodel);
+    BuildTrianglesAndAddToVirtualScene(&cowmodel);
 
     if ( argc > 1 )
     {
@@ -329,18 +352,60 @@ int main(int argc, char* argv[])
         // variáveis g_CameraDistance, g_CameraPhi, e g_CameraTheta são
         // controladas pelo mouse do usuário. Veja as funções CursorPosCallback()
         // e ScrollCallback().
-        float r = g_CameraDistance;
-        float y = r*sin(g_CameraPhi);
-        float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
-        float x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
 
-        // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
-        // Veja slide 165 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
-        glm::vec4 camera_position_c  = glm::vec4(x,y,z,1.0f); // Ponto "c", centro da câmera
-        glm::vec4 camera_lookat_l    = glm::vec4(0.0f,0.0f,0.0f,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
-        glm::vec4 camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
-        glm::vec4 camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+		float r,y,z,x;
+		glm::vec4 camera_up_vector;
+		glm::vec4 camera_view_vector;
+		glm::vec4 camera_position_c;
+		glm::vec4 camera_lookat_l;
 
+		glm::vec4 vetor_camera_vaca = glm::vec4(vaca_x,vaca_y,vaca_z,1.0f)
+                     - glm::vec4(posx_camera,posy_camera,posz_camera,1.0f);
+
+        g_CameraDistance = sqrt(pow(vetor_camera_vaca.x,2) + pow(vetor_camera_vaca.y,2)
+                                                           + pow(vetor_camera_vaca.z,2));
+
+        vaca_x += 0.005;
+        posx_camera += 0.005;
+        //Free Camera
+		if(tipo_camera == 0)
+		{
+			r = g_CameraDistance;
+			y = r*sin(g_CameraPhi);
+			z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
+			x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
+
+			camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+			camera_view_vector = -glm::vec4(x,y,z,0.0f);// Vetor "view", sentido para onde a câmera está virada
+			camera_position_c  = glm::vec4(posx_camera,posy_camera,posz_camera,1.0f); // Ponto "c", centro da câmera
+
+		} //Look AT Camera
+		else if(tipo_camera == 1){
+			r = g_CameraDistance;
+			y = r*sin(g_CameraPhi);
+			z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
+			x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
+
+			// Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
+			// Veja slide 165 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
+			camera_position_c  = glm::vec4(x + vaca_x ,y + vaca_y,z + vaca_z,1.0f); // Ponto "c", centro da câmera
+			camera_lookat_l    = glm::vec4(vaca_x,vaca_y,vaca_z,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+			camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
+			camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+		} // Camera Fixa
+		else if(tipo_camera == 2){
+			r = g_CameraDistance;
+			y = r*sin(g_CameraPhi);
+			z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
+			x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
+
+			// Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
+			// Veja slide 165 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
+			camera_position_c  = glm::vec4(vaca_x - 3.0f,2.0f,0.0f,1.0f); // Ponto "c", centro da câmera
+			camera_lookat_l    = glm::vec4(vaca_x,vaca_y,vaca_z,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+			camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
+			camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
+		}
         // Computamos a matriz "View" utilizando os parâmetros da câmera para
         // definir o sistema de coordenadas da câmera.  Veja slide 169 do
         // documento "Aula_08_Sistemas_de_Coordenadas.pdf".
@@ -378,7 +443,6 @@ int main(int argc, char* argv[])
         }
 
         glm::mat4 model = Matrix_Identity(); // Transformação identidade de modelagem
-
         // Enviamos as matrizes "view" e "projection" para a placa de vídeo
         // (GPU). Veja o arquivo "shader_vertex.glsl", onde estas são
         // efetivamente aplicadas em todos os pontos.
@@ -388,25 +452,26 @@ int main(int argc, char* argv[])
         #define SPHERE 0
         #define BUNNY  1
         #define PLANE  2
+		#define VACA   3
 
-        // Desenhamos o modelo da esfera
-        model = Matrix_Translate(-1.0f,0.0f,0.0f)
-              * Matrix_Rotate_Z(0.6f)
-              * Matrix_Rotate_X(0.2f)
-              * Matrix_Rotate_Y(g_AngleY + (float)glfwGetTime() * 0.1f);
+		// Desenhamos a vaca
+        model = Matrix_Translate(vaca_x,vaca_y,vaca_z);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
-        glUniform1i(object_id_uniform, SPHERE);
-        DrawVirtualObject("sphere");
+        glUniform1i(object_id_uniform, VACA);
+        DrawVirtualObject("cow");
 
-        // Desenhamos o modelo do coelho
+        int colidiu = desenha_esferas();
+
+         /*// Desenhamos o modelo do coelho
         model = Matrix_Translate(1.0f,0.0f,0.0f)
               * Matrix_Rotate_X(g_AngleX + (float)glfwGetTime() * 0.1f);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, BUNNY);
-        DrawVirtualObject("bunny");
+        DrawVirtualObject("bunny"); */
 
-        // Desenhamos o plano do chão
-        model = Matrix_Translate(0.0f,-1.1f,0.0f);
+         //Desenhamos o plano do chão
+        model = Matrix_Translate(0.0f,-0.6f,0.0f)
+                * Matrix_Scale(comprimento_estrada,1.0f,largura_estrada);
         glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(model));
         glUniform1i(object_id_uniform, PLANE);
         DrawVirtualObject("plane");
@@ -451,6 +516,112 @@ int main(int argc, char* argv[])
     return 0;
 }
 
+    int desenha_esferas(glm::mat4 *posicao_vaca){
+
+        float faixa_um = -2.0f;
+        float faixa_dois = -1.0f;
+        float faixa_tres = 0.0f;
+        float faixa_quatro = 1.0f;
+        float faixa_cinco = 2.0f;
+
+        int total_esferas = 7;
+
+        float posicao_inicial = comprimento_estrada/2.0f;
+
+
+
+        glm::vec3 esfera1 = glm::vec3(10.0f, 0.0f,faixa_um); // X,Y,Z
+        glm::vec3 esfera2 = glm::vec3(35.0f, 0.0f,faixa_dois); // X,Y,Z
+        glm::vec3 esfera3 = glm::vec3(30.0f, 0.0f, faixa_tres); // X,Y,Z
+        glm::vec3 esfera4 = glm::vec3(100.0f, 0.0f, faixa_dois); // X,Y,Z
+        glm::vec3 esfera5 = glm::vec3(120.0f, 0.0f, faixa_quatro); // X,Y,Z
+        glm::vec3 esfera6 = glm::vec3(150.0f, 0.0f, faixa_um); // X,Y,Z
+        glm::vec3 esfera7 = glm::vec3(200.0f, 0.0f, faixa_cinco); // X,Y,Z
+
+        int colidiu = 0;
+        int acrescenta_pontos = 0;
+
+         glm::mat4 model = Matrix_Identity();
+         model[0][3] = posicao_inicial;
+
+        model = desenha_cada_esfera(&model,&esfera1);
+
+        colidiu = testa_colisao_esfera_vaca(&esfera1);
+        if(colidiu == 1){
+            acrescenta_pontos = 1;
+        }
+
+        model = desenha_cada_esfera(&model,&esfera2);
+
+        colidiu = testa_colisao_esfera_vaca(&esfera2);
+        if(colidiu == 1){
+            acrescenta_pontos = 1;
+        }
+
+        model = desenha_cada_esfera(&model,&esfera3);
+
+        colidiu = testa_colisao_esfera_vaca(&esfera3);
+        if(colidiu == 1){
+            acrescenta_pontos = 1;
+        }
+
+        model = desenha_cada_esfera(&model, &esfera4);
+
+        colidiu = testa_colisao_esfera_vaca(&esfera4);
+        if(colidiu == 1){
+            acrescenta_pontos = 1;
+        }
+
+        model = desenha_cada_esfera(&model, &esfera5);
+
+        colidiu = testa_colisao_esfera_vaca(&esfera5);
+        if(colidiu == 1){
+            acrescenta_pontos = 1;
+        }
+
+        model = desenha_cada_esfera(&model, &esfera6);
+
+        colidiu = testa_colisao_esfera_vaca(&esfera6);
+        if(colidiu == 1){
+            acrescenta_pontos = 1;
+        }
+
+        model = desenha_cada_esfera(&model, &esfera7);
+
+        colidiu = testa_colisao_esfera_vaca(&esfera7);
+        if(colidiu == 1){
+            acrescenta_pontos = 1;
+        }
+    return acrescenta_pontos;
+}
+
+glm::mat4 desenha_cada_esfera(glm::mat4 *model,glm::vec3 *posicao_esfera)
+{
+    *model = Matrix_Translate(posicao_esfera->x,posicao_esfera->y,posicao_esfera->z)
+              * Matrix_Rotate_Z(0.6f)
+              * Matrix_Rotate_X(0.2f)
+              * Matrix_Rotate_Y(g_AngleY + (float)glfwGetTime() * 0.1f)
+			  * Matrix_Scale(0.2f,0.2f,0.2f);
+        glUniformMatrix4fv(model_uniform, 1 , GL_FALSE , glm::value_ptr(*model));
+        glUniform1i(object_id_uniform, SPHERE);
+        DrawVirtualObject("sphere");
+        return *model;
+}
+
+int testa_colisao_esfera_vaca(glm::vec3 *posicao_esfera)
+{
+    float raio_esfera = 0.2f;
+    float posicao_inicial = comprimento_estrada/2.0f;
+    int colidiu = 0;
+
+    float transl_vaca_x = vaca_x;
+    float transl_vaca_z = vaca_z;
+    float transl_esf_x = *posicao_esfera.x;
+    float transl_esf_z = *posicao_esfera.z;
+
+    if(transl_vaca_x >)
+
+}
 // Função que carrega uma imagem para ser utilizada como textura
 void LoadTextureImage(const char* filename)
 {
@@ -946,7 +1117,7 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
         fprintf(stderr, "%s", output.c_str());
     }
 
-    // Os "Shader Objects" podem ser marcados para deleção após serem linkados 
+    // Os "Shader Objects" podem ser marcados para deleção após serem linkados
     glDeleteShader(vertex_shader_id);
     glDeleteShader(fragment_shader_id);
 
@@ -1050,21 +1221,21 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-    
+
         // Atualizamos parâmetros da câmera com os deslocamentos
         g_CameraTheta -= 0.01f*dx;
         g_CameraPhi   += 0.01f*dy;
-    
+
         // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
         float phimax = 3.141592f/2;
         float phimin = -phimax;
-    
+
         if (g_CameraPhi > phimax)
             g_CameraPhi = phimax;
-    
+
         if (g_CameraPhi < phimin)
             g_CameraPhi = phimin;
-    
+
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -1076,11 +1247,11 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-    
+
         // Atualizamos parâmetros da antebraço com os deslocamentos
         g_ForearmAngleZ -= 0.01f*dx;
         g_ForearmAngleX += 0.01f*dy;
-    
+
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -1092,11 +1263,11 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-    
+
         // Atualizamos parâmetros da antebraço com os deslocamentos
         g_TorsoPositionX += 0.01f*dx;
         g_TorsoPositionY -= 0.01f*dy;
-    
+
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -1152,6 +1323,46 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     {
         g_AngleZ += (mod & GLFW_MOD_SHIFT) ? -delta : delta;
     }
+
+	 if (key == GLFW_KEY_W && action == GLFW_PRESS)
+    {
+        vaca_x += 0.5;
+		posx_camera += 0.5;
+
+    }
+
+	 if (key == GLFW_KEY_S && action == GLFW_PRESS)
+    {
+        vaca_x -= 0.5;
+		posx_camera -= 0.5;
+    }
+
+     if (key == GLFW_KEY_D && action == GLFW_PRESS)
+    {
+        if(vaca_z + 1.0 < largura_estrada){
+           vaca_z += 1.0;
+        }
+
+    }
+
+	 if (key == GLFW_KEY_A && action == GLFW_PRESS)
+    {
+        if(abs(vaca_z - 1.0) < largura_estrada){
+            vaca_z -= 1.0;
+        }
+    }
+
+	if(key ==  GLFW_KEY_C && action == GLFW_PRESS){
+		if(tipo_camera == 0){
+			tipo_camera = 1;
+		}else if (tipo_camera == 1){
+			tipo_camera = 2;
+		}
+		else{
+            tipo_camera = 0;
+		}
+	}
+
 
     // Se o usuário apertar a tecla espaço, resetamos os ângulos de Euler para zero.
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
@@ -1283,7 +1494,7 @@ void TextRendering_ShowFramesPerSecond(GLFWwindow* window)
     if ( ellapsed_seconds > 1.0f )
     {
         numchars = snprintf(buffer, 20, "%.2f fps", ellapsed_frames / ellapsed_seconds);
-    
+
         old_seconds = seconds;
         ellapsed_frames = 0;
     }

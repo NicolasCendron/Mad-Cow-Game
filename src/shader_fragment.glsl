@@ -22,6 +22,7 @@ uniform mat4 projection;
 #define SPHERE 0
 #define BUNNY  1
 #define PLANE  2
+#define VACA   3
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -32,6 +33,7 @@ uniform vec4 bbox_max;
 uniform sampler2D TextureImage0;
 uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
+
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec3 color;
@@ -68,6 +70,8 @@ void main()
     float U = 0.0;
     float V = 0.0;
 
+	 vec3 textura;
+
     if ( object_id == SPHERE )
     {
         // PREENCHA AQUI as coordenadas de textura da esfera, computadas com
@@ -91,6 +95,8 @@ void main()
 
         U = (theta + M_PI)/(2*M_PI);
         V = (phi + M_PI_2)/M_PI;
+
+		textura = texture(TextureImage0, vec2(U,V)).rgb;
     }
     else if ( object_id == BUNNY )
     {
@@ -104,33 +110,53 @@ void main()
 
         float minx = bbox_min.x;
         float maxx = bbox_max.x;
-        
+
         float miny = bbox_min.y;
         float maxy = bbox_max.y;
 
         float minz = bbox_min.z;
         float maxz = bbox_max.z;
 
-        U = (position_model.x - minx) / (maxx - minx); 
+        U = (position_model.x - minx) / (maxx - minx);
         V = (position_model.y - miny) / (maxy - miny);
+
+		textura = texture(TextureImage0, vec2(U,V)).rgb;
     }
     else if ( object_id == PLANE )
     {
         // Coordenadas de textura do plano, obtidas do arquivo OBJ.
         U = texcoords.x;
         V = texcoords.y;
-    }
+
+		 textura = texture(TextureImage1, vec2(U,V)).rgb;
+
+    }else if(object_id == VACA){
+
+	   float minx = bbox_min.x;
+        float maxx = bbox_max.x;
+
+        float miny = bbox_min.y;
+        float maxy = bbox_max.y;
+
+        float minz = bbox_min.z;
+        float maxz = bbox_max.z;
+
+        U = (position_model.x - minx) / (maxx - minx);
+        V = (position_model.y - miny) / (maxy - miny);
+
+		textura = texture(TextureImage0, vec2(U,V)).rgb;
+	}
 
     // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
-    vec3 Kd0 = texture(TextureImage0, vec2(U,V)).rgb;
+
 
     // Equação de Iluminação
     float lambert = max(0,dot(n,l));
-    
-        color = Kd0 * (lambert + 0.01);
-    
+
+        color = textura * (lambert + 0.01);
+
 
     // Cor final com correção gamma, considerando monitor sRGB.
     // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
     color = pow(color, vec3(1.0,1.0,1.0)/2.2);
-} 
+}
