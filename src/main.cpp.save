@@ -159,7 +159,7 @@ float pontos_por_esfera = 40;
 float vaca_x = 0.0f;
 float vaca_y = 0.0f;
 float vaca_z = 0.0f;
-float velocidade_vaca = 0.005f;
+
 float posx_camera = vaca_x - 2.0f;
 float posy_camera = 1.00f;
 float posz_camera = 0.00f;
@@ -374,8 +374,8 @@ int main(int argc, char* argv[])
         // controladas pelo mouse do usuário. Veja as funções CursorPosCallback()
         // e ScrollCallback().
 
-        pontos_totais = (int)vaca_x + esferas_coletadas*pontos_por_esfera;
-
+        pontos = pos
+        
 		float r,y,z,x;
 		glm::vec4 camera_up_vector;
 		glm::vec4 camera_view_vector;
@@ -388,8 +388,8 @@ int main(int argc, char* argv[])
         g_CameraDistance = sqrt(pow(vetor_camera_vaca.x,2) + pow(vetor_camera_vaca.y,2)
                                                            + pow(vetor_camera_vaca.z,2));
 
-        vaca_x += velocidade_vaca;
-        posx_camera += velocidade_vaca;
+        vaca_x += 0.005;
+        posx_camera += 0.005;
         //Free Camera
 		if(tipo_camera == 0)
 		{
@@ -485,9 +485,7 @@ int main(int argc, char* argv[])
         int colidiu = 0;
             colidiu = desenha_esferas();
             if(colidiu == 1){
-                esferas_coletadas++;
-                pontos_totais = (int)vaca_x + esferas_coletadas*pontos_por_esfera;
-                printf("Sua pontuação é: %f\n",pontos_totais);
+                printf("Você destruiu mais um planeta\n");
             }
          /*// Desenhamos o modelo do coelho
         model = Matrix_Translate(1.0f,0.0f,0.0f)
@@ -569,6 +567,7 @@ int main(int argc, char* argv[])
             if(colidiu == 1){
                 acrescenta_pontos = 1;
             }
+        }
 
             model = desenha_cada_esfera(&model,&esfera3);
 
@@ -1350,18 +1349,15 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
 
 	 if (key == GLFW_KEY_W && action == GLFW_PRESS)
     {
-        velocidade_vaca += 0.001;
+        vaca_x += 0.5;
+		posx_camera += 0.5;
 
     }
 
 	 if (key == GLFW_KEY_S && action == GLFW_PRESS)
     {
-        if(velocidade_vaca > 0.005){
-            velocidade_vaca -= 0.001;
-        }else{
-             velocidade_vaca = 0.005;
-        }
-
+        vaca_x -= 0.5;
+		posx_camera -= 0.5;
     }
 
      if (key == GLFW_KEY_D && action == GLFW_PRESS)
