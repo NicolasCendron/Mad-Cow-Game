@@ -17,12 +17,12 @@ in vec2 texcoords;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-
 // Identificador que define qual objeto está sendo desenhado no momento
 #define SPHERE 0
 #define BUNNY  1
 #define PLANE  2
 #define VACA   3
+#define FUNDO  4
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -33,7 +33,8 @@ uniform vec4 bbox_max;
 uniform sampler2D TextureImage0;
 uniform sampler2D TextureImage1;
 uniform sampler2D TextureImage2;
-
+uniform sampler2D TextureImage3;
+uniform sampler2D TextureImage4;
 
 // O valor de saída ("out") de um Fragment Shader é a cor final do fragmento.
 out vec3 color;
@@ -46,6 +47,7 @@ void main()
 {
     // Obtemos a posição da câmera utilizando a inversa da matriz que define o
     // sistema de coordenadas da câmera.
+
     vec4 origin = vec4(0.0, 0.0, 0.0, 1.0);
     vec4 camera_position = inverse(view) * origin;
 
@@ -61,31 +63,36 @@ void main()
     vec4 n = normalize(normal);
 
     // Vetor que define o sentido da fonte de luz em relação ao ponto atual.
-    vec4 l = normalize(vec4(1.0,1.0,0.0,0.0));
+    // Vetor que define o sentido da fonte de luz em relação ao ponto atual.
+    vec4 posicao_foco = vec4(camera_position.x - 1,2.0f,0.0f,0.0f);//+ vec4(2.0,0.0,0.0,0.0);
+
+    vec4 l = -normalize(camera_position - p);
 
     // Vetor que define o sentido da câmera em relação ao ponto atual.
     vec4 v = normalize(camera_position - p);
+
+    // Vetor que define o sentido da reflexão especular ideal.
+    vec4 r = normalize(-l + 2*n*dot(n,l)); // PREENCHA AQUI o vetor de reflexão especular ideal
+
+    // Parâmetros que definem as propriedades espectrais da superfície
+    vec3 Kd; // Refletância difusa
+    vec3 Ks; // Refletância especular
+    vec3 Ka; // Refletância ambiente
+    float q = 0; // Expoente especular para o modelo de iluminação de Phong
 
     // Coordenadas de textura U e V
     float U = 0.0;
     float V = 0.0;
 
-	 vec3 textura;
+    vec3 textura;
 
     if ( object_id == SPHERE )
     {
-        // PREENCHA AQUI as coordenadas de textura da esfera, computadas com
-        // projeção esférica EM COORDENADAS DO MODELO. Utilize como referência
-        // o slide 139 do documento "Aula_20_e_21_Mapeamento_de_Texturas.pdf".
-        // A esfera que define a projeção deve estar centrada na posição
-        // "bbox_center" definida abaixo.
 
-        // Você deve utilizar:
-        //   função 'length( )' : comprimento Euclidiano de um vetor
-        //   função 'atan( , )' : arcotangente. Veja https://en.wikipedia.org/wiki/Atan2.
-        //   função 'asin( )'   : seno inverso.
-        //   constante M_PI
-        //   variável position_model
+        Kd = vec3(0.1,0.4,0.08);
+        Ks = vec3(0.1,0.3,0.3);
+        Ka = vec3(0.1,0.2,0.04);
+        q = 1.0;
 
         vec4 bbox_center = (bbox_min + bbox_max) / 2.0;
 
@@ -96,7 +103,7 @@ void main()
         U = (theta + M_PI)/(2*M_PI);
         V = (phi + M_PI_2)/M_PI;
 
-		textura = texture(TextureImage0, vec2(U,V)).rgb;
+        textura = texture(TextureImage0, vec2(U,V)).rgb;
     }
     else if ( object_id == BUNNY )
     {
@@ -120,19 +127,48 @@ void main()
         U = (position_model.x - minx) / (maxx - minx);
         V = (position_model.y - miny) / (maxy - miny);
 
-		textura = texture(TextureImage0, vec2(U,V)).rgb;
+        textura = texture(TextureImage0, vec2(U,V)).rgb;
     }
     else if ( object_id == PLANE )
     {
+        // PREENCHA AQUI
+        // Propriedades espectrais do plano
+        Kd = vec3(0.2, 0.2, 0.2);
+        Ks = vec3(0.1, 0.3, 0.3);
+        Ka = vec3(1.0,0.2,0.2);
+        q = 20.0;
+
         // Coordenadas de textura do plano, obtidas do arquivo OBJ.
         U = texcoords.x;
         V = texcoords.y;
 
-		 textura = texture(TextureImage1, vec2(U,V)).rgb;
+        textura = texture(TextureImage1, vec2(U,V)).rgb;
 
-    }else if(object_id == VACA){
+    }
+    else if (object_id == FUNDO)
+    {
+        // PREENCHA AQUI
+        // Propriedades espectrais do plano
+        Kd = vec3(0.2, 0.2, 0.2);
+        Ks = vec3(0.3, 0.3, 0.3);
+        Ka = vec3(1.0,0.3,0.3);
+        q = 20.0;
 
-	   float minx = bbox_min.x;
+        U = texcoords.x;
+        V = texcoords.y;
+
+        textura = texture(TextureImage2, vec2(U,V)).rgb;
+    }
+    else if(object_id == VACA)
+    {
+         // PREENCHA AQUI
+        // Propriedades espectrais do coelho
+        Kd = vec3(0.3,0.8,0.8);
+        Ks = vec3(0.2, 1.0, 1.0);
+        Ka = vec3(1.0,0.5,0.4);
+        q = 32.0;
+
+        float minx = bbox_min.x;
         float maxx = bbox_max.x;
 
         float miny = bbox_min.y;
@@ -144,17 +180,46 @@ void main()
         U = (position_model.x - minx) / (maxx - minx);
         V = (position_model.y - miny) / (maxy - miny);
 
-		textura = texture(TextureImage0, vec2(U,V)).rgb;
-	}
+        textura = texture(TextureImage0, vec2(U,V)).rgb;
+    }
 
     // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0
 
+    // Espectro da fonte de iluminação
+    vec3 I = vec3(1.0,0.2,0.2); // PREENCH AQUI o espectro da fonte de luz
+
+    // Espectro da luz ambiente
+    vec3 Ia = vec3(0.2,0.2,0.2); // PREENCHA AQUI o espectro da luz ambiente
+
+    // Termo difuso utilizando a lei dos cossenos de Lambert
+    float cosseno =  dot(n, l) / (length(n) * length(l));
+    vec3 lambert_diffuse_term = Kd*I*max(0,cosseno); // PREENCHA AQUI o termo difuso de Lambert
+
+    // Termo ambiente
+    vec3 ambient_term = Ka*Ia; // PREENCHA AQUI o termo ambiente
+
+    // Termo especular utilizando o modelo de iluminação de Phong
+    vec3 phong_specular_term  = Ks*I*max(0,pow(dot(r,v),q)); // PREENCH AQUI o termo especular de Phong
+
+    // Cor final do fragmento calculada com uma combinação dos termos difuso,
+    // especular, e ambiente. Veja slide 134 do documento "Aula_17_e_18_Modelos_de_Iluminacao.pdf".
+
+    vec4 direcao_foco = vec4(1.0,-0.7,0.0,0.0);
+    float pi = 3.1415;
+    float cos_30= sqrt(3)/2.0;
 
     // Equação de Iluminação
-    float lambert = max(0,dot(n,l));
+   // float lambert = max(0,dot(n,l));
+    //color = textura * (lambert + 0.01);
 
-        color = textura * (lambert + 0.01);
+    //color = textura + lambert_diffuse_term + ambient_term + phong_specular_term; ;
 
+     if(dot(normalize(p - posicao_foco),normalize(direcao_foco)) >= cos_30){
+        color = textura + lambert_diffuse_term + ambient_term + phong_specular_term ;
+    }
+    else{
+        color = ambient_term;
+    }
 
     // Cor final com correção gamma, considerando monitor sRGB.
     // Veja https://en.wikipedia.org/w/index.php?title=Gamma_correction&oldid=751281772#Windows.2C_Mac.2C_sRGB_and_TV.2Fvideo_standard_gammas
