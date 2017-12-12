@@ -1,2 +1,2 @@
-# Road_Of_The_Dead_Copy
-Copy of the famous internet game made for Computer Graphics class.
+# MAD_COW_GAME
+An Original and Dark game about a mysterious cow hungry for planets.
