@@ -23,7 +23,6 @@ uniform mat4 projection;
 #define PLANE  2
 #define VACA   3
 #define FUNDO  4
-#define CAIXA  5
 uniform int object_id;
 
 // Parâmetros da axis-aligned bounding box (AABB) do modelo
@@ -159,7 +158,7 @@ void main()
 
         textura = texture(TextureImage0, vec2(U,V)).rgb;
     }
-    else if(object_id == CAIXA)
+    else if(object_id == CAIX)
     {
          // PREENCHA AQUI
         // Propriedades espectrais do coelho
@@ -177,10 +176,10 @@ void main()
         float minz = bbox_min.z;
         float maxz = bbox_max.z;
 
-        U = (position_model.y - miny) / (maxy - miny);
-        V = (position_model.z - minz) / (maxz - minz);
+        U = (position_model.x - minx) / (maxx - minx);
+        V = (position_model.y - miny) / (maxy - miny);
 
-        textura = texture(TextureImage3, vec2(U,V)).rgb;
+        textura = texture(TextureImage0, vec2(U,V)).rgb;
     }
 
     // Obtemos a refletância difusa a partir da leitura da imagem TextureImage0

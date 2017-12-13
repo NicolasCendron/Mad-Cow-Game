@@ -141,6 +141,43 @@ struct SceneObject
     glm::vec3    bbox_max;
 };
 
+struct Vaca
+{
+    float x = 0;
+    float y = 0;
+    float z = 0;
+    float velocidade = 0.05f;
+};
+
+struct Pontuacao
+{
+    float pontos_por_esfera = 30;
+    float pontos_por_acelerar = 0;
+    float total_de_pontos = 0;
+};
+
+struct Camera
+{
+    float x = 0.0f;
+    float y = 1.00f;
+    float z = 0.00f;
+
+    int tipo_camera = 2;
+};
+
+struct Estrada
+{
+    int fator_comprimento = 1;
+    float largura = 3.0f;
+    float comprimento = 100.0f;
+    float faixa_um = -2.0f;
+    float faixa_dois = -1.0f;
+    float faixa_tres = 0.0f;
+    float faixa_quatro = 1.0f;
+    float faixa_cinco = 2.0f;
+    std::vector<float> const faixas = {faixa_um, faixa_dois, faixa_tres, faixa_quatro, faixa_cinco};
+};
+
 // Abaixo definimos variáveis globais utilizadas em várias funções do código.
 
 // A cena virtual é uma lista de objetos nomeados, guardados em um dicionário
@@ -155,23 +192,11 @@ std::stack<glm::mat4>  g_MatrixStack;
 // Razão de proporção da janela (largura/altura). Veja função FramebufferSizeCallback().
 float g_ScreenRatio = 1.0f;
 
-float pontos_totais = 0;
-float esferas_coletadas = 0;
-float pontos_por_esfera = 40;
-float pontos_velocidade = 0;
-// Coordenadas vaca;
-float vaca_x = 0.0f;
-float vaca_y = 0.0f;
-float vaca_z = 0.0f;
-float velocidade_vaca = 0.005f;
-float posx_camera = vaca_x - 2.0f;
-float posy_camera = 1.00f;
-float posz_camera = 0.00f;
-
-int tipo_camera = 2;
-
-float largura_estrada = 3.0f;
-float comprimento_estrada = 100.0f;
+struct Vaca vaca;
+struct Pontuacao pontuacao;
+struct Camera camera;
+struct Estrada estrada;
+int esferas_coletadas = 0;
 
 std::vector<glm::vec4> esferas;
 
@@ -194,13 +219,6 @@ float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 3.5f; // Distância da câmera para a origem
 
-// Variáveis que controlam rotação do antebraço
-float g_ForearmAngleZ = 0.0f;
-float g_ForearmAngleX = 0.0f;
-
-// Variáveis que controlam translação do torso
-float g_TorsoPositionX = 0.0f;
-float g_TorsoPositionY = 0.0f;
 
 // Variável que controla o tipo de projeção utilizada: perspectiva ou ortográfica.
 bool g_UsePerspectiveProjection = true;
@@ -224,14 +242,8 @@ GLuint g_NumLoadedTextures = 0;
 
 int main(int argc, char* argv[])
 {
-    int multiplicador_estrada = 1;
+    camera.x = vaca.x - 2;
     int const total_esferas = 500;
-    float faixa_um = -2.0f;
-    float faixa_dois = -1.0f;
-    float faixa_tres = 0.0f;
-    float faixa_quatro = 1.0f;
-    float faixa_cinco = 2.0f;
-    std::vector<float> const faixas = {faixa_um, faixa_dois, faixa_tres, faixa_quatro, faixa_cinco};
 
     //Gera semente
     auto const seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -242,7 +254,7 @@ int main(int argc, char* argv[])
     std::set<std::pair<int, float>> x_esferas;
     while (x_esferas.size() < total_esferas)
     {
-        x_esferas.emplace(10 + (random_generator() % 200000) / 100, faixas[random_generator() % faixas.size()]);
+        x_esferas.emplace(10 + (random_generator() % 200000) / 100, estrada.faixas[random_generator() % estrada.faixas.size()]);
     }
     //Cria as Esferas
     for (auto const& posicao : x_esferas)
@@ -327,6 +339,7 @@ int main(int argc, char* argv[])
     LoadTextureImage("../../data/tc-earth_daymap_surface.jpg");// TextureImage0
     LoadTextureImage("../../data/road.jpg"); // TextureImage1
     LoadTextureImage("../../data/storm.jpg"); //TextureImage2
+    LoadTextureImage("../../data/box.jpg"); //TextureImage2
 
     // Construímos a representação de objetos geométricos através de malhas de triângulos
     ObjModel spheremodel("../../data/sphere.obj");
@@ -344,6 +357,11 @@ int main(int argc, char* argv[])
     ObjModel cowmodel("../../data/cow.obj");
     ComputeNormals(&cowmodel);
     BuildTrianglesAndAddToVirtualScene(&cowmodel);
+
+    ObjModel boxmodel("../../data/box.obj");
+    ComputeNormals(&boxmodel);
+    BuildTrianglesAndAddToVirtualScene(&boxmodel);
+
 
     if ( argc > 1 )
     {
@@ -394,7 +412,8 @@ int main(int argc, char* argv[])
         // controladas pelo mouse do usuário. Veja as funções CursorPosCallback()
         // e ScrollCallback().
 
-        pontos_totais = (int)vaca_x + esferas_coletadas*pontos_por_esfera + pontos_velocidade;
+        pontuacao.total_de_pontos = (int)vaca.x + esferas_coletadas*pontuacao.pontos_por_esfera
+                                                + pontuacao.pontos_por_acelerar;
 
         float r,y,z,x;
         glm::vec4 camera_up_vector;
@@ -402,16 +421,16 @@ int main(int argc, char* argv[])
         glm::vec4 camera_position_c;
         glm::vec4 camera_lookat_l;
 
-        glm::vec4 vetor_camera_vaca = glm::vec4(vaca_x,vaca_y,vaca_z,1.0f)
-                                      - glm::vec4(posx_camera,posy_camera,posz_camera,1.0f);
+        glm::vec4 vetor_camera_vaca = glm::vec4(vaca.x,vaca.y,vaca.z,1.0f)
+                                      - glm::vec4(camera.x,camera.y,camera.z,1.0f);
 
         g_CameraDistance = sqrt(pow(vetor_camera_vaca.x,2) + pow(vetor_camera_vaca.y,2)
                                 + pow(vetor_camera_vaca.z,2));
 
-        vaca_x += velocidade_vaca;
-        posx_camera += velocidade_vaca;
+        vaca.x += vaca.velocidade;
+        camera.x += vaca.velocidade;
         //Free Camera
-        if(tipo_camera == 0)
+        if(camera.tipo_camera == 0)
         {
             r = g_CameraDistance;
             y = r*sin(g_CameraPhi);
@@ -420,10 +439,10 @@ int main(int argc, char* argv[])
 
             camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
             camera_view_vector = -glm::vec4(x,y,z,0.0f);// Vetor "view", sentido para onde a câmera está virada
-            camera_position_c  = glm::vec4(posx_camera,posy_camera,posz_camera,1.0f); // Ponto "c", centro da câmera
+            camera_position_c  = glm::vec4(camera.x,camera.y,camera.z,1.0f); // Ponto "c", centro da câmera
 
         } //Look AT Camera
-        else if(tipo_camera == 1)
+        else if(camera.tipo_camera == 1)
         {
             r = g_CameraDistance;
             y = r*sin(g_CameraPhi);
@@ -432,12 +451,12 @@ int main(int argc, char* argv[])
 
             // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
             // Veja slide 165 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
-            camera_position_c  = glm::vec4(x + vaca_x,y + vaca_y,z + vaca_z,1.0f);  // Ponto "c", centro da câmera
-            camera_lookat_l    = glm::vec4(vaca_x,vaca_y,vaca_z,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+            camera_position_c  = glm::vec4(x + vaca.x,y + vaca.y,z + vaca.z,1.0f);  // Ponto "c", centro da câmera
+            camera_lookat_l    = glm::vec4(vaca.x,vaca.y,vaca.z,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
             camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
             camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
         } // Camera Fixa
-        else if(tipo_camera == 2)
+        else if(camera.tipo_camera == 2)
         {
             r = g_CameraDistance;
             y = r*sin(g_CameraPhi);
@@ -446,8 +465,8 @@ int main(int argc, char* argv[])
 
             // Abaixo definimos as varáveis que efetivamente definem a câmera virtual.
             // Veja slide 165 do documento "Aula_08_Sistemas_de_Coordenadas.pdf".
-            camera_position_c  = glm::vec4(vaca_x - 3.0f,2.0f,0.0f,1.0f); // Ponto "c", centro da câmera
-            camera_lookat_l    = glm::vec4(vaca_x,vaca_y,vaca_z,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
+            camera_position_c  = glm::vec4(vaca.x - 3.0f,2.0f,0.0f,1.0f); // Ponto "c", centro da câmera
+            camera_lookat_l    = glm::vec4(vaca.x,vaca.y,vaca.z,1.0f); // Ponto "l", para onde a câmera (look-at) estará sempre olhando
             camera_view_vector = camera_lookat_l - camera_position_c; // Vetor "view", sentido para onde a câmera está virada
             camera_up_vector   = glm::vec4(0.0f,1.0f,0.0f,0.0f); // Vetor "up" fixado para apontar para o "céu" (eito Y global)
         }
@@ -499,39 +518,44 @@ int main(int argc, char* argv[])
 #define PLANE  2
 #define VACA   3
 #define FUNDO  4
-
+#define CAIXA  5
         int colidiu_com_esfera = 0;
 
         colidiu_com_esfera = desenha_esferas();
 
         if(colidiu_com_esfera == 1)
         {
-            velocidade_vaca += 0.0005f;
+            vaca.velocidade += 0.0005f;
             esferas_coletadas++;
-            pontos_totais = (int)vaca_x*0.03 + esferas_coletadas*pontos_por_esfera + pontos_velocidade;
-            printf("Sua pontuação é: %f\n",pontos_totais);
         }
 
-        if(vaca_x > multiplicador_estrada*comprimento_estrada*0.8)
+        //Se a vava estiver se aproximando do fim da estrada, expande a estrada.
+        if(vaca.x > estrada.fator_comprimento * estrada.comprimento*0.8)
         {
-            multiplicador_estrada++;
+            estrada.fator_comprimento++;
         }
         //Desenhamos o plano do chão
         model = Matrix_Translate(0.0f,-0.6f,0.0f)
-                * Matrix_Scale(multiplicador_estrada*comprimento_estrada,1.0f,largura_estrada);
+                * Matrix_Scale(estrada.fator_comprimento * estrada.comprimento, 1.0f, estrada.largura);
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(object_id_uniform, PLANE);
         DrawVirtualObject("plane");
 
         // Desenhamos a vaca
-        model = Matrix_Translate(vaca_x,vaca_y,vaca_z);
+        model = Matrix_Translate(vaca.x,vaca.y,vaca.z);
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(object_id_uniform, VACA);
         DrawVirtualObject("cow");
 
+        // Desenhamos a vaca
+        model = Matrix_Translate(vaca.x + 2.0f,vaca.y,vaca.z - 0.5);
+        glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform1i(object_id_uniform, CAIXA);
+        DrawVirtualObject("box");
+
         //Desenhamos o plano do fundo
-        model = Matrix_Translate(vaca_x + 7.0f,0.5f,0.0f)
-                * Matrix_Scale(1.0f,1.0f,largura_estrada)
+        model = Matrix_Translate(vaca.x + 7.0f,0.5f,0.0f)
+                * Matrix_Scale(1.0f,1.0f,estrada.largura)
                 * Matrix_Rotate_Z(1.45f);
         glUniformMatrix4fv(model_uniform, 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(object_id_uniform, FUNDO);
@@ -624,12 +648,12 @@ int testa_colisao_esfera_vaca(glm::vec4 const& posicao_esfera)
 
     int colidiu = 0;
 
-    std::valarray<float> v1 = {vaca_x, vaca_y, vaca_z};
-    std::valarray<float> v2 = {posicao_esfera.x, posicao_esfera.y, posicao_esfera.z};
-    std::valarray<float> v3 = v1 - v2;
-    std::valarray<float> v4 = v3 * v3; // (x^2,y^2,z^2)
-    float v5 = std::accumulate(std::begin(v4), std::end(v4), 0); //
-    if (v5 < raio_esfera)
+    std::valarray<float> pos_vaca = {vaca.x, vaca.y, vaca.z};
+    std::valarray<float> pos_esfera = {posicao_esfera.x, posicao_esfera.y, posicao_esfera.z};
+    std::valarray<float> vet_vaca_esf = pos_vaca - pos_esfera;
+    std::valarray<float> vetor_quadrado = vet_vaca_esf * vet_vaca_esf; // (x^2,y^2,z^2)
+    float dis_vaca_esf = std::accumulate(std::begin(vetor_quadrado), std::end(vetor_quadrado), 0); //
+    if (dis_vaca_esf < raio_esfera)
     {
         colidiu = 1;
     }
@@ -1267,10 +1291,6 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
 
-        // Atualizamos parâmetros da antebraço com os deslocamentos
-        g_ForearmAngleZ -= 0.01f*dx;
-        g_ForearmAngleX += 0.01f*dy;
-
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
         g_LastCursorPosX = xpos;
@@ -1282,10 +1302,6 @@ void CursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         // Deslocamento do cursor do mouse em x e y de coordenadas de tela!
         float dx = xpos - g_LastCursorPosX;
         float dy = ypos - g_LastCursorPosY;
-
-        // Atualizamos parâmetros da antebraço com os deslocamentos
-        g_TorsoPositionX += 0.01f*dx;
-        g_TorsoPositionY -= 0.01f*dy;
 
         // Atualizamos as variáveis globais para armazenar a posição atual do
         // cursor como sendo a última posição conhecida do cursor.
@@ -1344,53 +1360,53 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
     }
 
     if (key == GLFW_KEY_W && action == GLFW_PRESS)
-   {
-       velocidade_vaca += 0.001;
-       pontos_velocidade += 10;
-   }
+    {
+        vaca.velocidade += 0.001;
+        pontuacao.pontos_por_acelerar += 10;
+    }
     if (key == GLFW_KEY_S && action == GLFW_PRESS)
     {
-        if(velocidade_vaca > 0.005)
-        {   pontos_velocidade -= 20;
-            velocidade_vaca -= 0.001;
-       }
-        else
-       {
-            velocidade_vaca = 0.005;
-       }
+        if(vaca.velocidade > 0.005)
+        {
+            vaca.velocidade -= 0.001;
+            pontuacao.pontos_por_acelerar -= 20;
 
+        }
+        else
+        {
+            vaca.velocidade = 0.005;
+        }
     }
 
     if (key == GLFW_KEY_D && action == GLFW_PRESS)
     {
-        if(vaca_z + 1.0 < largura_estrada)
+        if(vaca.z + 1.0 < estrada.largura)
         {
-            vaca_z += 1.0;
+            vaca.z += 1.0;
         }
-
     }
 
     if (key == GLFW_KEY_A && action == GLFW_PRESS)
     {
-        if(abs(vaca_z - 1.0) < largura_estrada)
+        if(abs(vaca.z - 1.0) < estrada.largura)
         {
-            vaca_z -= 1.0;
+            vaca.z -= 1.0;
         }
     }
 
     if(key ==  GLFW_KEY_C && action == GLFW_PRESS)
     {
-        if(tipo_camera == 0)
+        if(camera.tipo_camera == 0)
         {
-            tipo_camera = 1;
+            camera.tipo_camera = 1;
         }
-        else if (tipo_camera == 1)
+        else if (camera.tipo_camera == 1)
         {
-            tipo_camera = 2;
+            camera.tipo_camera = 2;
         }
         else
         {
-            tipo_camera = 0;
+            camera.tipo_camera = 0;
         }
     }
 
@@ -1401,10 +1417,6 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mod)
         g_AngleX = 0.0f;
         g_AngleY = 0.0f;
         g_AngleZ = 0.0f;
-        g_ForearmAngleX = 0.0f;
-        g_ForearmAngleZ = 0.0f;
-        g_TorsoPositionX = 0.0f;
-        g_TorsoPositionY = 0.0f;
     }
 
     // Se o usuário apertar a tecla P, utilizamos projeção perspectiva.
@@ -1480,7 +1492,7 @@ void TextRendering_ShowEulerAngles(GLFWwindow* window)
     float pad = TextRendering_LineHeight(window);
 
     char buffer[80];
-    snprintf(buffer, 80, "Sua Pontuação Atual eh de : %.0f\n", pontos_totais);
+    snprintf(buffer, 80, "Sua Pontuação Atual eh de : %.0f\n", pontuacao.total_de_pontos);
 
     TextRendering_PrintString(window, buffer, -1.0f+pad/10, -1.0f+2*pad/10, 1.0f);
 }
